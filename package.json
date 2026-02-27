@@ -12,7 +12,8 @@
     "setup:appwrite": "node scripts/setup-appwrite.js",
     "upload:books": "node scripts/upload-books.js",
     "clear:covers": "node scripts/clear-dummy-covers.js",
-    "clear:descriptions": "node scripts/clear-descriptions.js"
+    "clear:descriptions": "node scripts/clear-descriptions.js",
+    "delete:all": "node scripts/delete-all-books.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

@@ -1,5 +1,5 @@
 import { Client, Databases, ID, Storage } from "node-appwrite";
-import {InputFile} from "node-appwrite/file"
+import { InputFile } from "node-appwrite/file";
 import pdfThumbnail from "pdf-thumbnail";
 
 export default async ({ req, res, log, error }) => {
@@ -15,7 +15,8 @@ export default async ({ req, res, log, error }) => {
 
   try {
     // Parse the event payload
-    const payload = JSON.parse(req.body || "{}");
+    const payload =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
 
     // Check if this is a storage create event
     if (!payload.$id || !payload.bucketId) {

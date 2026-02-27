@@ -2,7 +2,6 @@ const { Client, Databases, Storage, ID } = require("node-appwrite");
 const { InputFile } = require("node-appwrite/file");
 const fs = require("fs");
 const path = require("path");
-const pdfThumbnail = require("pdf-thumbnail");
 require("dotenv").config({ path: ".env.local" });
 
 const client = new Client()
@@ -194,7 +193,6 @@ async function uploadBooks() {
             pdfFileId: fileId,
             genre: metadata.genre,
             language: metadata.language,
-            coverImage: `https://picsum.photos/seed/${fileId}/400/600`,
             pages: 0,
           },
         );

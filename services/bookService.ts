@@ -12,20 +12,31 @@ export const bookService = {
         [Query.orderDesc("$createdAt"), Query.limit(100)],
       );
 
-      return response.documents.map((doc: any) => ({
-        id: doc.$id,
-        title: doc.title,
-        author: doc.author,
-        description: doc.description || "",
-        coverImage: doc.coverImageId
+      console.log("📚 Fetched books count:", response.documents.length);
+
+      return response.documents.map((doc: any) => {
+        const coverUrl = doc.coverImageId
           ? this.getFileUrl(doc.coverImageId)
-          : doc.coverImage || "",
-        coverImageId: doc.coverImageId,
-        pdfUrl: doc.pdfFileId ? this.getFileUrl(doc.pdfFileId) : "",
-        pages: doc.pages || 0,
-        genre: doc.genre,
-        language: doc.language,
-      }));
+          : doc.coverImage || "";
+
+        console.log(`📖 Book: "${doc.title}"`);
+        console.log(`   - coverImageId: ${doc.coverImageId || "NOT SET"}`);
+        console.log(`   - coverImage: ${doc.coverImage || "NOT SET"}`);
+        console.log(`   - Generated URL: ${coverUrl || "EMPTY"}`);
+
+        return {
+          id: doc.$id,
+          title: doc.title,
+          author: doc.author,
+          description: doc.description || "",
+          coverImage: coverUrl,
+          coverImageId: doc.coverImageId,
+          pdfUrl: doc.pdfFileId ? this.getFileUrl(doc.pdfFileId) : "",
+          pages: doc.pages || 0,
+          genre: doc.genre,
+          language: doc.language,
+        };
+      });
     } catch (error) {
       console.error("Error fetching books:", error);
       throw error;

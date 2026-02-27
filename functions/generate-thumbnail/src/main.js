@@ -18,8 +18,12 @@ export default async ({ req, res, log, error }) => {
     const payload =
       typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
 
+    log("=== THUMBNAIL GENERATION STARTED ===");
+    log("Raw payload: " + JSON.stringify(payload));
+
     // Check if this is a storage create event
     if (!payload.$id || !payload.bucketId) {
+      log("❌ Invalid payload - missing $id or bucketId");
       return res.json({ success: false, message: "Invalid event payload" });
     }
 
@@ -27,9 +31,13 @@ export default async ({ req, res, log, error }) => {
     const bucketId = payload.bucketId;
     const fileName = payload.name || "";
 
+    log("File ID: " + fileId);
+    log("Bucket ID: " + bucketId);
+    log("File Name: " + fileName);
+
     // Only process PDF files
     if (!fileName.toLowerCase().endsWith(".pdf")) {
-      log("Skipping non-PDF file: " + fileName);
+      log("⏭️ Skipping non-PDF file: " + fileName);
       return res.json({ success: false, message: "Not a PDF file" });
     }
 
@@ -61,6 +69,11 @@ export default async ({ req, res, log, error }) => {
     const DATABASE_ID = process.env.APPWRITE_DATABASE_ID;
     const BOOKS_COLLECTION_ID = process.env.APPWRITE_BOOKS_COLLECTION_ID;
 
+    log("=== DATABASE UPDATE SECTION ===");
+    log("DATABASE_ID: " + DATABASE_ID);
+    log("BOOKS_COLLECTION_ID: " + BOOKS_COLLECTION_ID);
+    log("Searching for book with pdfFileId: " + fileId);
+
     // Find book by pdfFileId
     const books = await databases.listDocuments(
       DATABASE_ID,
@@ -68,17 +81,36 @@ export default async ({ req, res, log, error }) => {
       [`equal("pdfFileId", "${fileId}")`],
     );
 
+    log("Books found: " + books.documents.length);
+
     if (books.documents.length > 0) {
       const bookId = books.documents[0].$id;
+      log("Found book ID: " + bookId);
+      log("Book title: " + books.documents[0].title);
+      log(
+        "Current coverImageId: " +
+          (books.documents[0].coverImageId || "NOT SET"),
+      );
 
       // Update book with thumbnail
-      await databases.updateDocument(DATABASE_ID, BOOKS_COLLECTION_ID, bookId, {
-        coverImageId: thumbnailId,
-      });
+      log("Attempting to update book with coverImageId: " + thumbnailId);
 
-      log("Updated book document: " + bookId);
+      const updatedDoc = await databases.updateDocument(
+        DATABASE_ID,
+        BOOKS_COLLECTION_ID,
+        bookId,
+        {
+          coverImageId: thumbnailId,
+        },
+      );
+
+      log("✅ Successfully updated book document: " + bookId);
+      log("New coverImageId: " + updatedDoc.coverImageId);
     } else {
-      log("No book document found for PDF file: " + fileId);
+      log("❌ No book document found for PDF file: " + fileId);
+      log(
+        "This means the pdfFileId in the database doesn't match the uploaded file ID",
+      );
     }
 
     return res.json({

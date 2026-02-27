@@ -1,4 +1,4 @@
-import { Client, Databases, ID, Storage } from "node-appwrite";
+import { Client, Databases, ID, Query, Storage } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
 import { pdf } from "pdf-to-img";
 
@@ -80,7 +80,7 @@ export default async ({ req, res, log, error }) => {
       const books = await databases.listDocuments(
         DATABASE_ID,
         BOOKS_COLLECTION_ID,
-        [`equal("pdfFileId", "${fileId}")`],
+        [Query.equal("pdfFileId", fileId)],
       );
 
       log("Books found: " + books.documents.length);

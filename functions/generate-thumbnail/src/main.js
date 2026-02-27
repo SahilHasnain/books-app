@@ -75,42 +75,53 @@ export default async ({ req, res, log, error }) => {
     log("Searching for book with pdfFileId: " + fileId);
 
     // Find book by pdfFileId
-    const books = await databases.listDocuments(
-      DATABASE_ID,
-      BOOKS_COLLECTION_ID,
-      [`equal("pdfFileId", "${fileId}")`],
-    );
-
-    log("Books found: " + books.documents.length);
-
-    if (books.documents.length > 0) {
-      const bookId = books.documents[0].$id;
-      log("Found book ID: " + bookId);
-      log("Book title: " + books.documents[0].title);
-      log(
-        "Current coverImageId: " +
-          (books.documents[0].coverImageId || "NOT SET"),
-      );
-
-      // Update book with thumbnail
-      log("Attempting to update book with coverImageId: " + thumbnailId);
-
-      const updatedDoc = await databases.updateDocument(
+    try {
+      log("Attempting to list documents...");
+      const books = await databases.listDocuments(
         DATABASE_ID,
         BOOKS_COLLECTION_ID,
-        bookId,
-        {
-          coverImageId: thumbnailId,
-        },
+        [`equal("pdfFileId", "${fileId}")`],
       );
 
-      log("✅ Successfully updated book document: " + bookId);
-      log("New coverImageId: " + updatedDoc.coverImageId);
-    } else {
-      log("❌ No book document found for PDF file: " + fileId);
-      log(
-        "This means the pdfFileId in the database doesn't match the uploaded file ID",
-      );
+      log("Books found: " + books.documents.length);
+
+      if (books.documents.length > 0) {
+        const bookId = books.documents[0].$id;
+        log("Found book ID: " + bookId);
+        log("Book title: " + books.documents[0].title);
+        log(
+          "Current coverImageId: " +
+            (books.documents[0].coverImageId || "NOT SET"),
+        );
+
+        // Update book with thumbnail
+        log("Attempting to update book with coverImageId: " + thumbnailId);
+
+        const updatedDoc = await databases.updateDocument(
+          DATABASE_ID,
+          BOOKS_COLLECTION_ID,
+          bookId,
+          {
+            coverImageId: thumbnailId,
+          },
+        );
+
+        log("✅ Successfully updated book document: " + bookId);
+        log("New coverImageId: " + updatedDoc.coverImageId);
+      } else {
+        log("❌ No book document found for PDF file: " + fileId);
+        log(
+          "This means the pdfFileId in the database doesn't match the uploaded file ID",
+        );
+      }
+    } catch (dbError) {
+      error("❌ DATABASE ERROR:");
+      error("Message: " + dbError.message);
+      error("Code: " + (dbError.code || "unknown"));
+      error("Type: " + (dbError.type || "unknown"));
+      error("Full error: " + JSON.stringify(dbError));
+      // Don't throw - let the function complete successfully even if DB update fails
+      log("⚠️ Thumbnail was created but database update failed");
     }
 
     return res.json({

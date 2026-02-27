@@ -1,5 +1,5 @@
 import { Client, Databases, ID, Storage } from "node-appwrite";
-import InputFile from "node-appwrite/file"
+import {InputFile} from "node-appwrite/file"
 import pdfThumbnail from "pdf-thumbnail";
 
 export default async ({ req, res, log, error }) => {

@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { theme } from "../../constants/theme";
 import { bookService } from "../../services/bookService";
+import { downloadService } from "@/services/downloadService";
 
 export default function Reader() {
   const router = useRouter();
@@ -32,13 +33,28 @@ export default function Reader() {
           const fetchedBook = await bookService.getBookById(id);
           if (fetchedBook && fetchedBook.pdfUrl) {
             setBook(fetchedBook);
+
+            // Check if book is already downloaded
+            const isDownloaded = downloadService.isBookDownloaded(
+              fetchedBook.id,
+              fetchedBook.title,
+            );
+
+            // If downloaded, open immediately without showing loading
+            if (isDownloaded) {
+              setLoading(false);
+              // Open the cached PDF immediately
+              setTimeout(() => openPDF(true), 100);
+            } else {
+              setLoading(false);
+            }
           } else {
             setError(true);
+            setLoading(false);
           }
         } catch (err) {
           console.error("Error loading book:", err);
           setError(true);
-        } finally {
           setLoading(false);
         }
       }
@@ -47,7 +63,7 @@ export default function Reader() {
     fetchBook();
   }, [id]);
 
-  const openPDF = async () => {
+  const openPDF = async (useCache = true) => {
     if (!book || !book.pdfUrl) {
       Alert.alert("Error", "PDF file not available");
       return;
@@ -65,8 +81,17 @@ export default function Reader() {
         pdfDir.create();
       }
 
-      // Check if file already exists and delete it
       const targetFile = new File(pdfDir, fileName);
+
+      // If file exists and we want to use cache, open it directly
+      if (useCache && targetFile.exists) {
+        console.log("Opening cached PDF:", targetFile.uri);
+        await openPDFFile(targetFile);
+        setDownloading(false);
+        return;
+      }
+
+      // Delete existing file if we're re-downloading
       if (targetFile.exists) {
         targetFile.delete();
       }
@@ -81,25 +106,7 @@ export default function Reader() {
         downloadedFile.move(targetFile);
       }
 
-      if (Platform.OS === "android") {
-        // Android: Use IntentLauncher to open directly in PDF viewer
-        const contentUri = await LegacyFileSystem.getContentUriAsync(
-          targetFile.uri,
-        );
-        await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-          data: contentUri,
-          flags: 1,
-          type: "application/pdf",
-        });
-      } else {
-        // iOS: Use Linking to open directly
-        const supported = await Linking.canOpenURL(targetFile.uri);
-        if (supported) {
-          await Linking.openURL(targetFile.uri);
-        } else {
-          Alert.alert("Error", "Unable to open PDF viewer on this device");
-        }
-      }
+      await openPDFFile(targetFile);
     } catch (err) {
       console.error("Error opening PDF:", err);
       Alert.alert("Error", "Failed to open PDF. Please try again.");
@@ -108,10 +115,36 @@ export default function Reader() {
     }
   };
 
+  const openPDFFile = async (file: File) => {
+    if (Platform.OS === "android") {
+      // Android: Use IntentLauncher to open directly in PDF viewer
+      const contentUri = await LegacyFileSystem.getContentUriAsync(file.uri);
+      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+        data: contentUri,
+        flags: 1,
+        type: "application/pdf",
+      });
+    } else {
+      // iOS: Use Linking to open directly
+      const supported = await Linking.canOpenURL(file.uri);
+      if (supported) {
+        await Linking.openURL(file.uri);
+      } else {
+        Alert.alert("Error", "Unable to open PDF viewer on this device");
+      }
+    }
+  };
+
   useEffect(() => {
-    // Automatically open PDF when component loads
+    // Automatically open PDF when component loads (only for non-downloaded books)
     if (book && !downloading && !error) {
-      openPDF();
+      const isDownloaded = downloadService.isBookDownloaded(
+        book.id,
+        book.title,
+      );
+      if (!isDownloaded) {
+        openPDF(false);
+      }
     }
   }, [book]);
 
@@ -165,7 +198,10 @@ export default function Reader() {
           <Text style={styles.title}>{book.title}</Text>
           <Text style={styles.subtitle}>{book.author}</Text>
 
-          <TouchableOpacity style={styles.button} onPress={openPDF}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => openPDF(false)}
+          >
             <Ionicons
               name="book-outline"
               size={24}

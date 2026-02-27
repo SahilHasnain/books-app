@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,6 +15,7 @@ import { theme } from "../constants/theme";
 import { bookService } from "../services/bookService";
 import { downloadService } from "../services/downloadService";
 import { Book } from "../types/book";
+import { LanguageFilter } from "@/components/LanguageFilter";
 
 export default function Index() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function Index() {
   const [downloadedBooks, setDownloadedBooks] = useState<Set<string>>(
     new Set(),
   );
+  const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
 
   const checkDownloadedBooks = (booksList: Book[]) => {
     const downloaded = new Set<string>();
@@ -68,6 +70,20 @@ export default function Index() {
     setRefreshing(true);
     fetchBooks();
   };
+
+  // Extract unique languages from books
+  const availableLanguages = useMemo(() => {
+    const languages = books
+      .map((book) => book.language)
+      .filter((lang): lang is string => !!lang);
+    return Array.from(new Set(languages)).sort();
+  }, [books]);
+
+  // Filter books by selected language
+  const filteredBooks = useMemo(() => {
+    if (!selectedLanguage) return books;
+    return books.filter((book) => book.language === selectedLanguage);
+  }, [books, selectedLanguage]);
 
   const renderBook = ({ item }: { item: Book }) => {
     const isDownloaded = downloadedBooks.has(item.id);
@@ -161,10 +177,21 @@ export default function Index() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Library</Text>
-        <Text style={styles.headerSubtitle}>{books.length} books</Text>
+        <Text style={styles.headerSubtitle}>
+          {filteredBooks.length} {filteredBooks.length === 1 ? "book" : "books"}
+        </Text>
       </View>
+
+      {availableLanguages.length > 0 && (
+        <LanguageFilter
+          languages={availableLanguages}
+          selectedLanguage={selectedLanguage}
+          onSelectLanguage={setSelectedLanguage}
+        />
+      )}
+
       <FlatList
-        data={books}
+        data={filteredBooks}
         renderItem={renderBook}
         keyExtractor={(item) => item.id}
         numColumns={2}

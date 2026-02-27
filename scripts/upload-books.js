@@ -2,6 +2,7 @@ const { Client, Databases, Storage, ID } = require("node-appwrite");
 const { InputFile } = require("node-appwrite/file");
 const fs = require("fs");
 const path = require("path");
+const pdfThumbnail = require("pdf-thumbnail");
 require("dotenv").config({ path: ".env.local" });
 
 const client = new Client()

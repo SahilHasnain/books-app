@@ -25,7 +25,7 @@ export default function RootLayout() {
           name="index"
           options={{
             title: "My Library",
-            headerShown: true,
+            headerShown: false,
           }}
         />
         <Stack.Screen

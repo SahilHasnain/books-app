@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -13,6 +13,7 @@ import {
 import { BookCover } from "../components/BookCover";
 import { theme } from "../constants/theme";
 import { bookService } from "../services/bookService";
+import { downloadService } from "../services/downloadService";
 import { Book } from "../types/book";
 
 export default function Index() {
@@ -21,12 +22,26 @@ export default function Index() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [downloadedBooks, setDownloadedBooks] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const checkDownloadedBooks = (booksList: Book[]) => {
+    const downloaded = new Set<string>();
+    booksList.forEach((book) => {
+      if (downloadService.isBookDownloaded(book.id, book.title)) {
+        downloaded.add(book.id);
+      }
+    });
+    setDownloadedBooks(downloaded);
+  };
 
   const fetchBooks = async () => {
     try {
       setError(null);
       const fetchedBooks = await bookService.getAllBooks();
       setBooks(fetchedBooks);
+      checkDownloadedBooks(fetchedBooks);
     } catch (err) {
       console.error("Error loading books:", err);
       setError("Failed to load books. Please try again.");
@@ -40,40 +55,69 @@ export default function Index() {
     fetchBooks();
   }, []);
 
+  // Refresh download status when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (books.length > 0) {
+        checkDownloadedBooks(books);
+      }
+    }, [books]),
+  );
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchBooks();
   };
 
-  const renderBook = ({ item }: { item: Book }) => (
-    <TouchableOpacity
-      onPress={() => router.push(`/reader/${item.id}`)}
-      style={styles.bookCard}
-      activeOpacity={0.7}
-    >
-      <BookCover
-        title={item.title}
-        author={item.author}
-        language={item.language}
-        coverUrl={item.coverImage}
-        width={140}
-        height={200}
-      />
-      <View style={styles.bookInfo}>
-        <Text style={styles.bookTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
-        <Text style={styles.bookAuthor} numberOfLines={1}>
-          {item.author}
-        </Text>
-        {item.language && (
-          <View style={styles.languageBadge}>
-            <Text style={styles.languageText}>{item.language}</Text>
+  const renderBook = ({ item }: { item: Book }) => {
+    const isDownloaded = downloadedBooks.has(item.id);
+
+    return (
+      <TouchableOpacity
+        onPress={() => router.push(`/reader/${item.id}`)}
+        style={styles.bookCard}
+        activeOpacity={0.7}
+      >
+        <View style={styles.coverContainer}>
+          <BookCover
+            title={item.title}
+            author={item.author}
+            language={item.language}
+            coverUrl={item.coverImage}
+            width={140}
+            height={200}
+          />
+          <View
+            style={[
+              styles.statusBadge,
+              isDownloaded ? styles.readBadge : styles.downloadBadge,
+            ]}
+          >
+            <Ionicons
+              name={
+                isDownloaded ? "checkmark-circle" : "cloud-download-outline"
+              }
+              size={16}
+              color={theme.colors.text.primary}
+            />
           </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+        </View>
+        <View style={styles.bookInfo}>
+          <Text style={styles.bookTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <Text style={styles.bookAuthor} numberOfLines={1}>
+            {item.author}
+          </Text>
+          {item.language && (
+            <View style={styles.languageBadge}>
+              <Text style={styles.languageText}>{item.language}</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -177,6 +221,22 @@ const styles = StyleSheet.create({
   bookCard: {
     width: "48%",
     marginBottom: theme.spacing.md,
+  },
+  coverContainer: {
+    position: "relative",
+  },
+  statusBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    borderRadius: theme.borderRadius.full,
+    padding: 6,
+  },
+  downloadBadge: {
+    backgroundColor: "rgba(59, 130, 246, 0.9)",
+  },
+  readBadge: {
+    backgroundColor: "rgba(34, 197, 94, 0.9)",
   },
   bookInfo: {
     marginTop: theme.spacing.sm,

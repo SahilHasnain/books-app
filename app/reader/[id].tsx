@@ -115,6 +115,14 @@ export default function Reader() {
     }
   }, [book]);
 
+  // Notify when going back that download status may have changed
+  useEffect(() => {
+    return () => {
+      // This will trigger when component unmounts (user goes back)
+      router.setParams({ refresh: Date.now().toString() });
+    };
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.container}>

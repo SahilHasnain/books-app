@@ -1,6 +1,6 @@
 import { Client, Databases, ID, Storage } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
-import pdfThumbnail from "pdf-thumbnail";
+import { pdf } from "pdf-to-img";
 
 export default async ({ req, res, log, error }) => {
   const client = new Client()
@@ -40,19 +40,14 @@ export default async ({ req, res, log, error }) => {
 
     // Generate thumbnail from first page
     log("Generating thumbnail...");
-    const thumbnail = await pdfThumbnail(fileBuffer, {
-      compress: {
-        type: "JPEG",
-        quality: 85,
-      },
-      width: 400,
-      height: 600,
-    });
+    const document = await pdf(Buffer.from(fileBuffer), { scale: 2 });
+    const firstPage = await document.getPage(1);
+    const thumbnail = firstPage;
 
     // Upload thumbnail to storage
     log("Uploading thumbnail...");
     const thumbnailId = ID.unique();
-    const thumbnailFileName = fileName.replace(".pdf", "_thumb.jpg");
+    const thumbnailFileName = fileName.replace(".pdf", "_thumb.png");
 
     await storage.createFile(
       bucketId,

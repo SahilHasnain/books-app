@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "node-appwrite": "^14.1.0",
-    "pdf-thumbnail": "^1.0.6"
+    "pdf-to-img": "^5.0.0"
   },
   "devDependencies": {
     "prettier": "^3.0.0"

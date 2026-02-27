@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -46,35 +47,30 @@ export default function Index() {
 
   const renderBook = ({ item }: { item: Book }) => (
     <TouchableOpacity
-      onPress={() => router.push(`/book/${item.id}`)}
+      onPress={() => router.push(`/reader/${item.id}`)}
       style={styles.bookCard}
+      activeOpacity={0.7}
     >
-      <View style={styles.bookContent}>
-        <BookCover
-          title={item.title}
-          author={item.author}
-          language={item.language}
-          coverUrl={item.coverImage}
-          width={112}
-          height={160}
-        />
-        <View style={styles.bookInfo}>
-          <View style={styles.bookTextContainer}>
-            <Text style={styles.bookTitle} numberOfLines={2}>
-              {item.title}
-            </Text>
-            <Text style={styles.bookAuthor}>{item.author}</Text>
-            {item.language && (
-              <Text style={styles.bookLanguage}>{item.language}</Text>
-            )}
-            <Text style={styles.bookDescription} numberOfLines={2}>
-              {item.description}
-            </Text>
+      <BookCover
+        title={item.title}
+        author={item.author}
+        language={item.language}
+        coverUrl={item.coverImage}
+        width={140}
+        height={200}
+      />
+      <View style={styles.bookInfo}>
+        <Text style={styles.bookTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <Text style={styles.bookAuthor} numberOfLines={1}>
+          {item.author}
+        </Text>
+        {item.language && (
+          <View style={styles.languageBadge}>
+            <Text style={styles.languageText}>{item.language}</Text>
           </View>
-          {item.pages > 0 && (
-            <Text style={styles.bookPages}>{item.pages} pages</Text>
-          )}
-        </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -91,6 +87,11 @@ export default function Index() {
   if (error) {
     return (
       <View style={styles.centerContainer}>
+        <Ionicons
+          name="alert-circle-outline"
+          size={64}
+          color={theme.colors.text.secondary}
+        />
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={fetchBooks}>
           <Text style={styles.retryButtonText}>Retry</Text>
@@ -102,21 +103,29 @@ export default function Index() {
   if (books.length === 0) {
     return (
       <View style={styles.centerContainer}>
+        <Ionicons
+          name="book-outline"
+          size={64}
+          color={theme.colors.text.secondary}
+        />
         <Text style={styles.emptyText}>No books available</Text>
-        <Text style={styles.emptySubtext}>
-          Check back later for new additions
-        </Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Library</Text>
+        <Text style={styles.headerSubtitle}>{books.length} books</Text>
+      </View>
       <FlatList
         data={books}
         renderItem={renderBook}
         keyExtractor={(item) => item.id}
+        numColumns={2}
         contentContainerStyle={styles.listContent}
+        columnWrapperStyle={styles.row}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -142,52 +151,60 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: theme.spacing.lg,
   },
+  header: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.md,
+  },
+  headerTitle: {
+    color: theme.colors.text.primary,
+    fontSize: 32,
+    fontWeight: theme.fontWeight.bold,
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitle: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.fontSize.md,
+  },
   listContent: {
-    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
+  },
+  row: {
+    justifyContent: "space-between",
+    marginBottom: theme.spacing.lg,
   },
   bookCard: {
-    marginBottom: theme.spacing.lg,
-    marginHorizontal: theme.spacing.md,
-  },
-  bookContent: {
-    flexDirection: "row",
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: theme.colors.surfaceLight,
+    width: "48%",
+    marginBottom: theme.spacing.md,
   },
   bookInfo: {
-    flex: 1,
-    padding: theme.spacing.md,
-    justifyContent: "space-between",
-  },
-  bookTextContainer: {
-    flex: 1,
+    marginTop: theme.spacing.sm,
   },
   bookTitle: {
     color: theme.colors.text.primary,
-    fontSize: theme.fontSize.lg,
+    fontSize: theme.fontSize.md,
     fontWeight: theme.fontWeight.semibold,
     marginBottom: theme.spacing.xs,
+    lineHeight: 20,
   },
   bookAuthor: {
     color: theme.colors.text.secondary,
     fontSize: theme.fontSize.sm,
     marginBottom: theme.spacing.xs,
   },
-  bookLanguage: {
+  languageBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.xs,
+  },
+  languageText: {
     color: theme.colors.primary,
     fontSize: theme.fontSize.xs,
-    marginBottom: theme.spacing.xs,
-  },
-  bookDescription: {
-    color: theme.colors.text.tertiary,
-    fontSize: theme.fontSize.xs,
-  },
-  bookPages: {
-    color: theme.colors.text.muted,
-    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.medium,
   },
   loadingText: {
     color: theme.colors.text.secondary,
@@ -198,13 +215,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     fontSize: theme.fontSize.md,
     textAlign: "center",
-    marginBottom: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
   },
   retryButton: {
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.xl,
     paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.full,
   },
   retryButtonText: {
     color: theme.colors.text.primary,
@@ -215,10 +233,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     fontSize: theme.fontSize.lg,
     fontWeight: theme.fontWeight.semibold,
-    marginBottom: theme.spacing.sm,
-  },
-  emptySubtext: {
-    color: theme.colors.text.secondary,
-    fontSize: theme.fontSize.sm,
+    marginTop: theme.spacing.md,
   },
 });

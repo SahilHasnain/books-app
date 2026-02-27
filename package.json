@@ -11,7 +11,8 @@
     "lint": "expo lint",
     "setup:appwrite": "node scripts/setup-appwrite.js",
     "upload:books": "node scripts/upload-books.js",
-    "clear:covers": "node scripts/clear-dummy-covers.js"
+    "clear:covers": "node scripts/clear-dummy-covers.js",
+    "clear:descriptions": "node scripts/clear-descriptions.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

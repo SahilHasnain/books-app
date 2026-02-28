@@ -1,49 +1,41 @@
+import { LanguageFilter } from "@/components/LanguageFilter";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Directory, File as FSFile, Paths } from "expo-file-system";
+import * as LegacyFileSystem from "expo-file-system/legacy";
+import * as IntentLauncher from "expo-intent-launcher";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Linking,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { BookCover } from "../components/BookCover";
 import { theme } from "../constants/theme";
 import { bookService } from "../services/bookService";
-import { downloadService } from "../services/downloadService";
 import { Book } from "../types/book";
-import { LanguageFilter } from "@/components/LanguageFilter";
 
 export default function Index() {
-  const router = useRouter();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloadedBooks, setDownloadedBooks] = useState<Set<string>>(
-    new Set(),
-  );
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
+  const [openingPDF, setOpeningPDF] = useState<string | null>(null);
 
-  const checkDownloadedBooks = (booksList: Book[]) => {
-    const downloaded = new Set<string>();
-    booksList.forEach((book) => {
-      if (downloadService.isBookDownloaded(book.id, book.title)) {
-        downloaded.add(book.id);
-      }
-    });
-    setDownloadedBooks(downloaded);
-  };
-
-  const fetchBooks = async () => {
+  const fetchBooks = useCallback(async () => {
     try {
       setError(null);
       const fetchedBooks = await bookService.getAllBooks();
       setBooks(fetchedBooks);
-      checkDownloadedBooks(fetchedBooks);
     } catch (err) {
       console.error("Error loading books:", err);
       setError("Failed to load books. Please try again.");
@@ -51,19 +43,17 @@ export default function Index() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchBooks();
-  }, []);
+  }, [fetchBooks]);
 
   // Refresh download status when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (books.length > 0) {
-        checkDownloadedBooks(books);
-      }
-    }, [books]),
+      // Refresh books when screen comes into focus
+    }, []),
   );
 
   const onRefresh = () => {
@@ -85,14 +75,85 @@ export default function Index() {
     return books.filter((book) => book.language === selectedLanguage);
   }, [books, selectedLanguage]);
 
+  const openPDF = async (book: Book) => {
+    if (!book.pdfUrl) {
+      Alert.alert("Error", "PDF file not available");
+      return;
+    }
+
+    try {
+      setOpeningPDF(book.id);
+
+      const fileName = `${book.title.replace(/[^a-z0-9]/gi, "_")}.pdf`;
+      const pdfDir = new Directory(Paths.cache, "pdfs");
+      if (!pdfDir.exists) {
+        pdfDir.create();
+      }
+
+      const targetFile = new FSFile(pdfDir, fileName);
+
+      // If file exists, open it directly
+      if (targetFile.exists) {
+        await openPDFFile(targetFile);
+        setOpeningPDF(null);
+        return;
+      }
+
+      // Delete existing file if present
+      if (targetFile.exists) {
+        targetFile.delete();
+      }
+
+      // Download the PDF
+      const downloadedFile = await FSFile.downloadFileAsync(
+        book.pdfUrl,
+        pdfDir,
+        {
+          idempotent: true,
+        },
+      );
+
+      // Rename to proper filename
+      if (downloadedFile.uri !== targetFile.uri) {
+        downloadedFile.move(targetFile);
+      }
+
+      await openPDFFile(targetFile);
+    } catch (err) {
+      console.error("Error opening PDF:", err);
+      Alert.alert("Error", "Failed to open PDF. Please try again.");
+    } finally {
+      setOpeningPDF(null);
+    }
+  };
+
+  const openPDFFile = async (file: FSFile) => {
+    if (Platform.OS === "android") {
+      const contentUri = await LegacyFileSystem.getContentUriAsync(file.uri);
+      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+        data: contentUri,
+        flags: 1,
+        type: "application/pdf",
+      });
+    } else {
+      const supported = await Linking.canOpenURL(file.uri);
+      if (supported) {
+        await Linking.openURL(file.uri);
+      } else {
+        Alert.alert("Error", "Unable to open PDF viewer on this device");
+      }
+    }
+  };
+
   const renderBook = ({ item }: { item: Book }) => {
-    const isDownloaded = downloadedBooks.has(item.id);
+    const isOpening = openingPDF === item.id;
 
     return (
       <TouchableOpacity
-        onPress={() => router.push(`/reader/${item.id}`)}
+        onPress={() => openPDF(item)}
         style={styles.bookCard}
         activeOpacity={0.7}
+        disabled={isOpening}
       >
         <View style={styles.coverContainer}>
           <BookCover
@@ -103,98 +164,88 @@ export default function Index() {
             width={140}
             height={200}
           />
-          <View
-            style={[
-              styles.statusBadge,
-              isDownloaded ? styles.readBadge : styles.downloadBadge,
-            ]}
-          >
-            <Ionicons
-              name={
-                isDownloaded ? "checkmark-circle" : "cloud-download-outline"
-              }
-              size={16}
-              color={theme.colors.text.primary}
-            />
-          </View>
-        </View>
-        <View style={styles.bookInfo}>
-          <Text style={styles.bookTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-          <Text style={styles.bookAuthor} numberOfLines={1}>
-            {item.author}
-          </Text>
-          {item.language && (
-            <View style={styles.languageBadge}>
-              <Text style={styles.languageText}>{item.language}</Text>
+          {isOpening && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color="#fff" />
             </View>
           )}
         </View>
+        <Text style={styles.bookTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <Text style={styles.bookAuthor} numberOfLines={1}>
+          {item.author}
+        </Text>
       </TouchableOpacity>
     );
   };
 
-  if (loading) {
+  const renderHeader = () => {
+    if (availableLanguages.length === 0) return null;
+
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading books...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Ionicons
-          name="alert-circle-outline"
-          size={64}
-          color={theme.colors.text.secondary}
-        />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchBooks}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (books.length === 0) {
-    return (
-      <View style={styles.centerContainer}>
-        <Ionicons
-          name="book-outline"
-          size={64}
-          color={theme.colors.text.secondary}
-        />
-        <Text style={styles.emptyText}>No books available</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Library</Text>
-        <Text style={styles.headerSubtitle}>
-          {filteredBooks.length} {filteredBooks.length === 1 ? "book" : "books"}
-        </Text>
-      </View>
-
-      {availableLanguages.length > 0 && (
+      <View style={styles.filterContainer}>
         <LanguageFilter
           languages={availableLanguages}
           selectedLanguage={selectedLanguage}
           onSelectLanguage={setSelectedLanguage}
         />
-      )}
+      </View>
+    );
+  };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading books...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.centerContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={theme.colors.text.secondary}
+          />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchBooks}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (books.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.centerContainer}>
+          <Ionicons
+            name="book-outline"
+            size={64}
+            color={theme.colors.text.secondary}
+          />
+          <Text style={styles.emptyText}>No books available</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
       <FlatList
         data={filteredBooks}
         renderItem={renderBook}
         keyExtractor={(item) => item.id}
         numColumns={2}
+        ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.listContent}
         columnWrapperStyle={styles.row}
         showsVerticalScrollIndicator={false}
@@ -206,7 +257,7 @@ export default function Index() {
           />
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -222,76 +273,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: theme.spacing.lg,
   },
-  header: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl,
-    paddingBottom: theme.spacing.md,
-  },
-  headerTitle: {
-    color: theme.colors.text.primary,
-    fontSize: 32,
-    fontWeight: theme.fontWeight.bold,
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    color: theme.colors.text.secondary,
-    fontSize: theme.fontSize.md,
+  filterContainer: {
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
   },
   listContent: {
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
   },
   row: {
     justifyContent: "space-between",
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
   },
   bookCard: {
     width: "48%",
-    marginBottom: theme.spacing.md,
   },
   coverContainer: {
     position: "relative",
+    marginBottom: theme.spacing.sm,
+    borderRadius: 8,
+    overflow: "hidden",
   },
-  statusBadge: {
+  loadingOverlay: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    borderRadius: theme.borderRadius.full,
-    padding: 6,
-  },
-  downloadBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.9)",
-  },
-  readBadge: {
-    backgroundColor: "rgba(34, 197, 94, 0.9)",
-  },
-  bookInfo: {
-    marginTop: theme.spacing.sm,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   bookTitle: {
     color: theme.colors.text.primary,
     fontSize: theme.fontSize.md,
     fontWeight: theme.fontWeight.semibold,
-    marginBottom: theme.spacing.xs,
     lineHeight: 20,
+    marginBottom: 4,
   },
   bookAuthor: {
     color: theme.colors.text.secondary,
     fontSize: theme.fontSize.sm,
-    marginBottom: theme.spacing.xs,
-  },
-  languageBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.sm,
-    marginTop: theme.spacing.xs,
-  },
-  languageText: {
-    color: theme.colors.primary,
-    fontSize: theme.fontSize.xs,
-    fontWeight: theme.fontWeight.medium,
   },
   loadingText: {
     color: theme.colors.text.secondary,

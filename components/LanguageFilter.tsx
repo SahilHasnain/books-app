@@ -84,7 +84,6 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
   },
   scrollContent: {
-    paddingHorizontal: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
   filterPill: {

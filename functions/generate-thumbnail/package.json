@@ -5,7 +5,7 @@
   "main": "src/main.js",
   "type": "module",
   "scripts": {
-    "build": "echo 'No build required'",
+    "build": "node init && echo 'No build required'",
     "format": "prettier --write ."
   },
   "dependencies": {
